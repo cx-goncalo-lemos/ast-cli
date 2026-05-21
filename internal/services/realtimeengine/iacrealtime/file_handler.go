@@ -33,6 +33,12 @@ func (fh *FileHandler) PrepareScanEnvironment(filePath string) (volumeMap, tempD
 		return "", "", err
 	}
 
+	// Resolve symlinks so Docker Desktop receives the canonical path (e.g. /tmp → /private/tmp on macOS).
+	resolvedDir, err := filepath.EvalSymlinks(tempDir)
+	if err == nil {
+		tempDir = resolvedDir
+	}
+
 	volumeMap = fmt.Sprintf("%s:%s", tempDir, ContainerPath)
 	return volumeMap, tempDir, nil
 }
