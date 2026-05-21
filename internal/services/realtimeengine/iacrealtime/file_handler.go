@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	errorconstants "github.com/checkmarx/ast-cli/internal/constants/errors"
@@ -37,7 +38,14 @@ func (fh *FileHandler) PrepareScanEnvironment(filePath string) (volumeMap, tempD
 }
 
 func (fh *FileHandler) CreateTempDirectory() (string, error) {
-	tempDir, err := os.MkdirTemp("", ContainerTempDirPattern)
+	// On macOS, os.TempDir() returns /var/folders/... which Docker Desktop does not
+	// share by default, causing volume mounts to silently produce no output on the host.
+	// Use /tmp explicitly on non-Windows platforms since Docker always shares it.
+	baseDir := ""
+	if runtime.GOOS != "windows" {
+		baseDir = "/tmp"
+	}
+	tempDir, err := os.MkdirTemp(baseDir, ContainerTempDirPattern)
 	if err != nil {
 		return "", errorconstants.NewRealtimeEngineError("error creating temporary directory").Error()
 	}
