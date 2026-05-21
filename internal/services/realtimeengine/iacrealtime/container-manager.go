@@ -167,7 +167,8 @@ func (dm *ContainerManager) RunKicsContainer(engine, volumeMap string) error {
 		"-o", ContainerPath,
 		"--report-formats", ContainerFormat,
 	)
-	_, err = cmd.CombinedOutput()
+	output, err := cmd.CombinedOutput()
+	logger.PrintIfVerbose("KICS container output: " + strings.TrimSpace(string(output)))
 
 	return err
 }
