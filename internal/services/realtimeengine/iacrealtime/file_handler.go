@@ -33,29 +33,36 @@ func (fh *FileHandler) PrepareScanEnvironment(filePath string) (volumeMap, tempD
 		return "", "", err
 	}
 
-	// Resolve symlinks so Docker Desktop receives the canonical path (e.g. /tmp → /private/tmp on macOS).
-	resolvedDir, err := filepath.EvalSymlinks(tempDir)
-	if err == nil {
-		tempDir = resolvedDir
-	}
-
 	volumeMap = fmt.Sprintf("%s:%s", tempDir, ContainerPath)
 	return volumeMap, tempDir, nil
 }
 
 func (fh *FileHandler) CreateTempDirectory() (string, error) {
-	// On macOS, os.TempDir() returns /var/folders/... which Docker Desktop does not
-	// share by default, causing volume mounts to silently produce no output on the host.
-	// Use /tmp explicitly on non-Windows platforms since Docker always shares it.
-	baseDir := ""
-	if runtime.GOOS != "windows" {
-		baseDir = "/tmp"
-	}
+	baseDir := dockerSafeBaseDir()
 	tempDir, err := os.MkdirTemp(baseDir, ContainerTempDirPattern)
 	if err != nil {
 		return "", errorconstants.NewRealtimeEngineError("error creating temporary directory").Error()
 	}
 	return tempDir, nil
+}
+
+// dockerSafeBaseDir returns a temp base directory that Docker can reliably bind-mount on all platforms.
+// On macOS, /tmp resolves to /private/tmp which colima and other non-Desktop Docker VMs do not share
+// with the host. Only /Users is universally shared across Docker Desktop, colima, and Rancher Desktop.
+// os.UserCacheDir() returns /Users/<name>/Library/Caches on macOS, which is always within /Users.
+func dockerSafeBaseDir() string {
+	if runtime.GOOS == "windows" {
+		return ""
+	}
+	if runtime.GOOS == "darwin" {
+		if cacheDir, err := os.UserCacheDir(); err == nil {
+			return cacheDir
+		}
+		if homeDir, err := os.UserHomeDir(); err == nil {
+			return homeDir
+		}
+	}
+	return ""
 }
 
 func (fh *FileHandler) CopyFileToTempDir(filePath, tempDir string) error {
